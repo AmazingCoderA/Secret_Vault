@@ -46,9 +46,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          if [ "${{ runner.os }}" = "Linux" ]; then cp src-tauri/target/release/bundle/appimage/* src-tauri/target/release/bundle/deb/* release-assets/; fi
-          if [ "${{ runner.os }}" = "Windows" ]; then cp src-tauri/target/release/bundle/nsis/* release-assets/; fi
-          if [ "${{ runner.os }}" = "macOS" ]; then cp src-tauri/target/release/bundle/dmg/* release-assets/; fi
+          find src-tauri/target/release/bundle -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) -exec cp {} release-assets/ \;
+          test "$(find release-assets -type f | wc -l)" -gt 0
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.artifact }}
