@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=Calculator
-Name[ru]=Калькулятор
-Comment=Calculator with a local file vault
-Comment[ru]=Калькулятор с локальным файловым хранилищем
+Name=Secret Vault
+Name[ru]=Secret Vault
+Comment=Private encrypted file vault hidden behind a calculator
+Comment[ru]=Приватное зашифрованное хранилище, скрытое за калькулятором
 Exec=vault-calculator
 Icon=app.local.vaultcalculator
 Categories=Utility;

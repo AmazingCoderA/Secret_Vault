@@ -25,9 +25,3 @@ jobs:
         with:
           name: flatpak
           path: vault-calculator.flatpak
-      - name: Attach Flatpak to tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: vault-calculator.flatpak
-          draft: true

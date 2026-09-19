@@ -10,18 +10,22 @@ permissions:
   contents: write
 
 jobs:
-  tauri:
+  desktop:
+    name: Desktop ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-24.04
-            args: --bundles appimage,deb
-          - platform: windows-latest
-            args: --bundles nsis
-          - platform: macos-latest
-            args: --bundles dmg
-    runs-on: ${{ matrix.platform }}
+          - os: ubuntu-24.04
+            bundles: appimage,deb
+            artifact: linux
+          - os: windows-latest
+            bundles: nsis
+            artifact: windows
+          - os: macos-latest
+            bundles: dmg
+            artifact: macos
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,18 +33,114 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
       - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run tauri build -- --bundles ${{ matrix.bundles }}
+      - name: Collect Linux binary
+        if: runner.os == 'Linux'
+        shell: bash
+        run: mkdir -p release-assets && cp src-tauri/target/release/vault-calculator release-assets/secret-vault-linux-x86_64
+      - name: Collect desktop packages
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          if [ "${{ runner.os }}" = "Linux" ]; then cp src-tauri/target/release/bundle/appimage/* src-tauri/target/release/bundle/deb/* release-assets/; fi
+          if [ "${{ runner.os }}" = "Windows" ]; then cp src-tauri/target/release/bundle/nsis/* release-assets/; fi
+          if [ "${{ runner.os }}" = "macOS" ]; then cp src-tauri/target/release/bundle/dmg/* release-assets/; fi
+      - uses: actions/upload-artifact@v4
         with:
-          tagName: v__VERSION__
-          releaseName: "Calculator v__VERSION__"
-          releaseDraft: true
+          name: release-${{ matrix.artifact }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install Android command-line tools
+        shell: bash
+        run: |
+          ANDROID_HOME="$RUNNER_TEMP/android-sdk"
+          mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
+          curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o "$RUNNER_TEMP/cmdline-tools.zip"
+          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-tools"
+          mv "$RUNNER_TEMP/cmdline-tools/cmdline-tools"/* "$ANDROID_HOME/cmdline-tools/latest"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - run: yes | sdkmanager --licenses && sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - run: echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run tauri android init
+      - run: npm run tauri android build -- --debug
+      - name: Collect APK
+        shell: bash
+        run: mkdir -p release-assets && find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} release-assets/ \;
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: release-assets/*.apk
+          if-no-files-found: error
+
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: secret-vault.flatpak
+          manifest-path: packaging/app.local.vaultcalculator.yml
+          cache-key: flatpak-${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-flatpak
+          path: secret-vault.flatpak
+
+  publish:
+    name: Publish GitHub Release
+    needs: [desktop, android, flatpak]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Secret Vault ${{ github.ref_name }}
+          body: |
+            ## Secret Vault ${{ github.ref_name }}
+
+            A private local vault hidden behind a normal calculator.
+
+            ### Downloads
+            - Windows: NSIS installer
+            - Linux: AppImage, DEB, and standalone x86_64 binary
+            - macOS: DMG
+            - Android: debug APK
+            - Linux desktop: Flatpak
+
+            English is the default language. Russian is selected automatically on Russian system locales and can be changed with the EN/RU button.
+          files: release-assets/*
+          draft: false
           prerelease: false
-          args: ${{ matrix.args }}

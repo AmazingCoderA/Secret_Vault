@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>app.local.vaultcalculator</id>
-  <name>Calculator</name>
-  <summary>Calculator with a local file vault</summary>
+  <name>Secret Vault</name>
+  <summary>Private encrypted file vault hidden behind a calculator</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>LicenseRef-proprietary</project_license>
   <launchable type="desktop-id">app.local.vaultcalculator.desktop</launchable>
   <description>
-    <p>A calculator interface that can open a password-protected local file vault.</p>
+    <p>A private encrypted file vault hidden behind a normal calculator interface.</p>
   </description>
   <content_rating type="oars-1.1" />
   <recommends>
