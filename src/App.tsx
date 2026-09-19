@@ -5,8 +5,10 @@ import type { Theme } from './types';
 import { Calculator } from './components/Calculator';
 import { Auth } from './components/Auth';
 import { Workspace } from './components/Workspace';
+import { useI18n } from './i18n';
 
 export function App() {
+  const { t } = useI18n();
   const [screen, setScreen] = useState<'calculator' | 'auth' | 'vault'>('calculator');
   const [containers, setContainers] = useState<ContainerSummary[]>([]);
   const [equalHoldEnabled] = useState(true);
@@ -26,7 +28,7 @@ export function App() {
     session.current = null;
     setLogin(null); setScreen('calculator'); setBusy(false); setError('');
     lockPending.current = api.lock();
-    void lockPending.current.catch(() => setError('Не удалось подтвердить блокировку. Закройте приложение.'));
+    void lockPending.current.catch(() => setError('Could not confirm locking. Close the application.'));
   }, []);
 
   useEffect(() => {
@@ -126,5 +128,5 @@ export function App() {
     onSnapshot={snapshot => { const updated = { ...login, snapshot }; session.current = updated; setLogin(updated); }}
     onDialog={value => { inDialog.current = value; if (!value && document.hidden && session.current?.snapshot.settings.lockOnHide) lock(); }}
   />;
-  return <><Calculator onOpen={open} equalHoldEnabled={equalHoldEnabled} />{error && <div className="global-error" role="alert">{error}</div>}</>;
+  return <><Calculator onOpen={open} equalHoldEnabled={equalHoldEnabled} />{error && <div className="global-error" role="alert">{t(error)}</div>}</>;
 }

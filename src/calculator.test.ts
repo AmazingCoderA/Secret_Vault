@@ -11,7 +11,7 @@ describe('calculator', () => {
     expect(enter(['2', '+', '×', '3', '=']).display).toBe('6');
   });
   it('recovers from division by zero', () => {
-    expect(enter(['8', '÷', '0', '=']).display).toBe('Ошибка');
+    expect(enter(['8', '÷', '0', '=']).display).toBe('Error');
     expect(enter(['8', '÷', '0', '=', '2', '+', '1', '=']).display).toBe('3');
   });
   it('supports percentage, sign, backspace and fresh entry', () => {

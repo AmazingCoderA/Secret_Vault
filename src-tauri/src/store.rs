@@ -46,6 +46,8 @@ pub enum Theme {
     Ocean,
     Violet,
     Rose,
+    Aurora,
+    Ember,
 }
 
 impl Theme {
@@ -57,6 +59,8 @@ impl Theme {
             Self::Ocean => "ocean",
             Self::Violet => "violet",
             Self::Rose => "rose",
+            Self::Aurora => "aurora",
+            Self::Ember => "ember",
         }
     }
 
@@ -68,6 +72,8 @@ impl Theme {
             "ocean" => Ok(Self::Ocean),
             "violet" => Ok(Self::Violet),
             "rose" => Ok(Self::Rose),
+            "aurora" => Ok(Self::Aurora),
+            "ember" => Ok(Self::Ember),
             _ => Err("Неизвестная тема.".into()),
         }
     }

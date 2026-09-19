@@ -10,10 +10,10 @@ export const initialCalculator: CalculatorState = { display: '0', accumulator: n
 function calculate(a: number, b: number, operation: string): number {
   switch (operation) { case '+': return a + b; case '−': return a - b; case '×': return a * b; case '÷': return a / b; default: return b; }
 }
-function format(value: number): string { return Number.isFinite(value) ? String(Number(value.toPrecision(12))) : 'Ошибка'; }
+function format(value: number): string { return Number.isFinite(value) ? String(Number(value.toPrecision(12))) : 'Error'; }
 export function calculator(state: CalculatorState, key: string): CalculatorState {
   if (key === 'AC') return { ...initialCalculator };
-  if (state.display === 'Ошибка') state = { ...initialCalculator };
+  if (state.display === 'Error') state = { ...initialCalculator };
   if (/^\d$/.test(key) || key === '.') {
     const current = state.waiting ? '0' : state.display;
     if (key === '.' && current.includes('.')) return state;
@@ -27,7 +27,7 @@ export function calculator(state: CalculatorState, key: string): CalculatorState
     const result = state.operation && !state.waiting && state.accumulator !== null
       ? calculate(state.accumulator, Number(state.display), state.operation) : Number(state.display);
     const display = format(result);
-    if (display === 'Ошибка') return { ...initialCalculator, display };
+    if (display === 'Error') return { ...initialCalculator, display };
     return { ...state, display, accumulator: result, operation: key, waiting: true, previous: null, history: `${display} ${key}` };
   }
   if (key === '=') {

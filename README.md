@@ -1,178 +1,102 @@
-# Secret_Vault
-A private shadow storage!
+# Secret Vault
 
-## Vault · Calculator
+A private local vault hidden behind a normal calculator.
 
-Первый рабочий этап концепции **«калькулятор снаружи → файловое хранилище внутри»**.
+## Overview
 
-**Стек:** Rust, Tauri 2, React, TypeScript, Vite. Одна кодовая база для Windows и Android; русскоязычный адаптивный интерфейс в стиле Material 3 с тёмной зелёно-синей палитрой.
+Secret Vault is a production-oriented Tauri 2 desktop/mobile app built with Rust, React, TypeScript, and Vite. The app opens as a clean calculator and unlocks encrypted file containers through a separate vault flow.
 
-## Запуск на Windows
+The UI uses English by default and switches to Russian automatically when the system language starts with `ru`. Users can change the language in the app at any time.
 
-В этой рабочей папке уже собран и проверен запуск **`src-tauri/target/debug/vault-calculator.exe`**. Его можно открыть напрямую, без запуска Vite.
+## Features
 
-Нужны Node.js 22.12+ или 24+, Rust и Visual Studio Build Tools с компонентом «Разработка классических приложений на C++», Windows SDK и WebView2.
+- Multiple independent vault containers.
+- Visible and hidden containers.
+- XChaCha20-Poly1305 authenticated encryption for file names and contents.
+- Argon2id password hashing and key derivation profiles.
+- Password recovery through an optional security question.
+- Auto-lock, lock-on-hide, and Emergency Lock.
+- Built-in preview for images, text, PDF, audio, and video.
+- External open through temporary files with automatic cleanup.
+- Import conflict handling: replace, copy, or skip.
+- Optional source cleanup after import: keep, delete, or three-pass overwrite.
+- File masking, accent color, and eight visual themes.
+- Windows, Linux, Android, and Flatpak CI builds.
+
+## Requirements
+
+- Node.js 22+.
+- Rust stable.
+- Windows: Visual Studio Build Tools with C++ desktop workload, Windows SDK, and WebView2.
+- Linux: WebKitGTK 4.1 and AppIndicator development packages.
+- Android: JDK 17, Android SDK, NDK, and Tauri Android prerequisites.
+
+## Development
 
 ```powershell
 npm install
 npm run tauri dev
 ```
 
-Первый запуск Cargo скачивает и компилирует зависимости и может занять несколько минут.
-
-Сборка установщика:
-
-```powershell
-npm run tauri build
-```
-
-Результат: `src-tauri/target/release/bundle/nsis/`.
-
-Быстрая отладочная сборка отдельного `.exe` без установщика:
-
-```powershell
-npm run tauri -- build --debug --no-bundle
-```
-
-### Быстро посмотреть интерфейс
+Browser preview:
 
 ```powershell
 npm run dev
 ```
 
-Открыть **http://127.0.0.1:1420**. Браузерный режим — отдельная демонстрация: файлы и пароль живут только в памяти вкладки, данные теряются при обновлении. Это не замена нативному хранилищу. В демо нет Argon2id; он реализован в Rust.
+The browser preview is useful for UI work. Secure persistent storage is provided by the native Tauri build.
 
-## Как пользоваться
+## Build
 
-1. При запуске отображается обычный калькулятор. Он поддерживает клавиатуру, проценты, смену знака и повторное `=`. Вычисления последовательные, как на стандартном карманном калькуляторе.
-2. **Удерживать `=` примерно секунду**, нажать подпись под клавиатурой или `Alt+V` — открыть вход.
-3. При первом входе задать пароль от восьми символов. При последующих — ввести его.
-4. «Добавить файлы» открывает системный выбор. На Windows также можно перетащить файлы. Импорт копирует данные, оставляя оригиналы.
-5. Доступны поиск, категории, сортировка, сетка/список, переименование, экспорт и удаление.
-6. **Emergency Lock**, кнопка блокировки или **Esc** немедленно возвращают калькулятор и отзывают сессию.
-7. Настройки позволяют выбрать профиль Argon2id, время автоблокировки, блокировку при скрытии и сменить пароль.
-
-## Что реализовано
-
-- Постоянное локальное хранение в SQLite; имена и содержимое файлов защищены XChaCha20-Poly1305 с уникальным nonce и привязкой к ID записи.
-- Случайный 256-битный ключ хранилища обёрнут ключом из Argon2id. Пароль и ответ на контрольный вопрос сохраняются только как PHC-хеши.
-- Непостоянные случайные токены сессии, проверка каждой операции на стороне Rust.
-- Автоблокировка после 1 / 5 / 15 минут бездействия, блокировка при `visibilitychange` → hidden (кроме системного выбора файлов).
-- Задержка после нескольких неверных паролей в рамках текущего процесса.
-- SQLite-транзакции для файловых операций; тестируется перезапуск, точность экспорта, отзыв сессий и смена пароля.
-- Вход и ресурсоёмкие операции выполняются вне UI-потока.
-
-| Профиль | Память Argon2id | Проходы | Параллелизм |
-|---|---:|---:|---:|
-| Fast | 16 МиБ | 2 | 1 |
-| Balanced | 32 МиБ | 3 | 1 |
-| Strong | 64 МиБ | 3 | 1 |
-| Maximum | 128 МиБ | 4 | 1 |
-
-## Границы первого этапа
-
-Существующая база автоматически и атомарно шифруется при первом успешном входе в новую версию. Размеры файлов, число записей и время добавления остаются видны в структуре SQLite.
-
-- В Windows база: `%LOCALAPPDATA%\app.local.vaultcalculator\vault-prototype.sqlite3`; на Android — каталог данных приложения.
-- До **32 МиБ на файл**: импорт и экспорт пока целиком в памяти. Размеры чанков **256 / 512 КиБ / 1 МиБ** сохраняются как настройка следующего этапа, но ещё не применяются.
-- Emergency Lock скрывает интерфейс и отзывает сессию; не удаляет файлы и не скрывает приложение от ОС. Уже завершённый экспорт остаётся снаружи. Очистка памяти JS и снимков ОС не гарантируется.
-- `visibilitychange` зависит от платформы/WebView. Нативная обработка Android lifecycle и защита снимков экрана — отдельная работа перед защищённым релизом.
-- Экран-калькулятор — визуальная маска, не гарантия сокрытия наличия хранилища. В прототипе оставлен явный способ входа под клавиатурой.
-- Защита от одновременной работы нескольких процессов с одной базой и восстановление забытого пароля пока не предусмотрены.
-
-## Android
-
-Установить Android Studio, Android SDK / Platform Tools, NDK (Side by side), JDK 17 или 21; настроить `JAVA_HOME`, `ANDROID_HOME`, `NDK_HOME` по [инструкции Tauri](https://v2.tauri.app/start/prerequisites/#android). Затем:
+Windows installer:
 
 ```powershell
-rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-npm run tauri android init
-npm run tauri android dev
+npm run tauri build -- --bundles nsis
 ```
 
-Сборка APK/AAB:
+Linux packages are built in CI as AppImage and DEB artifacts.
+
+Android debug APK is built in CI. Local Android setup follows the official Tauri Android prerequisites.
+
+## Tests
 
 ```powershell
-npm run tauri android build
-```
-
-В проекте есть мобильная точка входа и системные плагины выбора/чтения файлов с поддержкой Android `content://` URI. Сейчас для таких импортов используется нейтральное имя `Импорт-…`, его можно изменить в интерфейсе; чтение исходного display name через Android ContentResolver ещё нужно добавить. Сборку и поведение на реальном телефоне необходимо проверить после настройки SDK/NDK.
-
-## Автосборка и релизы
-
-- GitHub запускает тесты при каждом push/PR (`.github/workflows/ci.yml`).
-- При каждом push/PR дополнительно собираются Windows NSIS, Linux AppImage/DEB, Android debug APK и Flatpak (`.github/workflows/platforms.yml`, `.github/workflows/flatpak.yml`). Файлы лежат во вкладке workflow в разделе Artifacts.
-- Тег `v0.1.0` запускает черновик GitHub Release с NSIS для Windows, AppImage/DEB для Linux, DMG для macOS и отдельным Flatpak-файлом.
-- Flatpak с ветки `main` также доступен в Artifacts запуска workflow `Flatpak`.
-- Codeberg проверяется через Woodpecker (`.woodpecker.yml`): подключить репозиторий на CI-сервисе Codeberg и разрешить сборки. Forgejo Actions требует собственного runner, поэтому конфиг не дублируется.
-
-Первичная публикация:
-
-```powershell
-git init
-git add .
-git commit -m "Initial release"
-git branch -M main
-git remote add github https://github.com/USER/REPO.git
-git remote add codeberg https://codeberg.org/USER/REPO.git
-git push -u github main
-git push -u codeberg main
-git tag v0.1.0
-git push github v0.1.0
-git push codeberg v0.1.0
-```
-
-Перед публичной публикацией заменить временный идентификатор `app.local.vaultcalculator` на принадлежащий проекту reverse-DNS App ID (например, `io.github.USER.VaultCalculator`) одновременно в `src-tauri/tauri.conf.json` и `packaging/`. Для отправки во Flathub также нужны открытая лицензия, URL проекта и скриншоты в AppStream metadata. Текущий Flatpak использует сеть во время сборки и предназначен для CI-артефактов; официальный Flathub потребует зафиксированные offline-источники npm и Cargo.
-
-### GitHub
-
-```powershell
-git add .
-git commit -m "Update app"
-git push origin main
-```
-
-Открыть GitHub → **Actions** → workflow **Mobile and Linux** или **Flatpak** → скачать `Artifacts`. Для публичного релиза создать тег:
-
-```powershell
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-После этого GitHub создаст черновик Release с Windows/Linux и Flatpak. Для Flathub: сначала заменить App ID и лицензие, затем создать репозиторий с таким ID в `flathub/flathub` через Pull Request. Flathub сам проверит manifest и будет собирать последующие версии по тегам.
-
-## Проверки
-
-```powershell
-npm run build
 npm test
-npm run test:e2e
+npm run build
 cargo test --manifest-path src-tauri/Cargo.toml --lib
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-E2E-тесты используют установленный Microsoft Edge, desktop и мобильный viewport. Они проверяют браузерный UI-прототип, а Rust-тесты отдельно проверяют постоянное хранилище и аутентификацию.
+## GitHub Actions
 
-Проверено в текущем окружении Windows: production-сборка интерфейса, сборка и запуск отладочного `.exe`, 4 теста калькулятора, 3 Rust-теста и 6 E2E-сценариев. Android-сборка пока не проверена.
+- `CI` runs frontend tests, frontend build, Rust tests, and clippy.
+- `Mobile and Linux` builds Windows NSIS, Linux AppImage/DEB, and Android debug APK artifacts.
+- `Flatpak` builds a Flatpak artifact.
+- `Release` builds tagged release artifacts.
 
-## Структура
+Artifacts are available from the corresponding workflow run on GitHub.
+
+## Storage Notes
+
+- Containers are local SQLite databases.
+- Visible container names are stored in the container index so they can be shown before unlock.
+- Hidden containers require the exact name and password.
+- Files are currently limited to 32 MiB each and are processed in memory.
+- Three-pass overwrite cannot guarantee physical erasure on SSDs because of wear leveling.
+
+## Structure
 
 ```text
 src/
-  App.tsx                   маршруты, сессия, Emergency Lock, idle timer
-  api.ts                    Tauri IPC + изолированное браузерное демо
-  calculator.ts             логика калькулятора без eval
-  components/               экраны и диалоги
-  styles.css                адаптивная тёмная тема
+  App.tsx                 session routing, lock logic, app state
+  api.ts                  Tauri IPC, file dialogs, browser preview fallback
+  i18n.tsx                English/Russian localization
+  calculator.ts           calculator logic
+  components/             UI screens and dialogs
 src-tauri/
-  src/store.rs              SQLite, Argon2id, сессии, файловые операции
-  src/lib.rs                команды Tauri и mobile entry point
-  capabilities/default.json права только на выбранные пользователем файлы
-tests/                      E2E-сценарии
+  src/store.rs            encrypted SQLite vault storage
+  src/manager.rs          container manager and external open handling
+  src/lib.rs              Tauri commands and mobile entry point
+packaging/                Flatpak metadata and manifest
+tests/                    Playwright UI tests
 ```
-
-## Следующий этап: усиление контейнера
-
-Текущая версия использует версионированные AEAD-записи и атомарную миграцию. Следующий этап — потоковое шифрование по чанкам, сокрытие размеров, резервное копирование контейнера и внешний аудит формата.
-
-2048, Ping Pong и фонарик оставлены для следующих итераций после основного хранилища.
