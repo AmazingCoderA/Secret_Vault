@@ -1,0 +1,33 @@
+[package]
+name = "vault-calculator"
+version = "0.1.0"
+description = "Calculator and local file vault prototype"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "vault_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+argon2 = "0.5"
+rand_core = { version = "0.6", features = ["getrandom"] }
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+percent-encoding = "2"
+chacha20poly1305 = "0.10"
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = "3"

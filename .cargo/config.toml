@@ -1,0 +1,3 @@
+[build]
+# Keep the first Tauri/WebView2 build responsive on memory-constrained machines.
+jobs = 2

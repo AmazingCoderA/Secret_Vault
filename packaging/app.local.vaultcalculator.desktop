@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Calculator
+Name[ru]=Калькулятор
+Comment=Calculator with a local file vault
+Comment[ru]=Калькулятор с локальным файловым хранилищем
+Exec=vault-calculator
+Icon=app.local.vaultcalculator
+Categories=Utility;
+Terminal=false

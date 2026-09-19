@@ -1,0 +1,42 @@
+app-id: app.local.vaultcalculator
+runtime: org.gnome.Platform
+runtime-version: "48"
+sdk: org.gnome.Sdk
+command: vault-calculator
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node20
+  - org.freedesktop.Sdk.Extension.rust-stable
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+build-options:
+  append-path: /usr/lib/sdk/node20/bin:/usr/lib/sdk/rust-stable/bin
+  build-args:
+    - --share=network
+  env:
+    CARGO_HOME: /run/build/vault-calculator/cargo
+    HOME: /run/build/vault-calculator
+modules:
+  - name: vault-calculator
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .flatpak-builder
+          - .git
+          - dist
+          - node_modules
+          - src-tauri/target
+          - test-results
+    build-commands:
+      - npm ci
+      - npm run build
+      - cargo build --release --locked --manifest-path src-tauri/Cargo.toml
+      - install -Dm755 src-tauri/target/release/vault-calculator /app/bin/vault-calculator
+      - install -Dm644 packaging/app.local.vaultcalculator.desktop /app/share/applications/app.local.vaultcalculator.desktop
+      - install -Dm644 packaging/app.local.vaultcalculator.metainfo.xml /app/share/metainfo/app.local.vaultcalculator.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/app.local.vaultcalculator.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/app.local.vaultcalculator.png
