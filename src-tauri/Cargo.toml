@@ -1,6 +1,6 @@
 [package]
 name = "vault-calculator"
-version = "0.1.0"
+version = "0.1.2"
 description = "Calculator and local encrypted file vault"
 edition = "2021"
 rust-version = "1.85"
