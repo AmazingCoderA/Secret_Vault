@@ -19,4 +19,10 @@ describe('calculator', () => {
     expect(enter(['1', '2', '⌫']).display).toBe('1');
     expect(enter(['2', '+', '3', '=', '7']).display).toBe('7');
   });
+  it('switches between decimal and binary arithmetic', () => {
+    expect(enter(['5', 'BIN']).display).toBe('101');
+    expect(enter(['BIN', '1', '0', '+', '1', '1', '=']).display).toBe('101');
+    expect(enter(['BIN', '1', '0', '2', '+', '1', '=']).display).toBe('11');
+    expect(enter(['BIN', '1', '0', '+', '1', '=', 'DEC']).display).toBe('3');
+  });
 });

@@ -467,17 +467,11 @@ impl Manager {
         &self,
         token: &str,
         settings: Settings,
-        password: String,
         new_password: Option<String>,
         recovery_answer: Option<String>,
     ) -> Result<()> {
-        self.for_token(token)?.save_settings(
-            token,
-            settings,
-            password,
-            new_password,
-            recovery_answer,
-        )
+        self.for_token(token)?
+            .save_settings(token, settings, new_password, recovery_answer)
     }
 }
 

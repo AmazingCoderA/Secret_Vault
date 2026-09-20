@@ -131,10 +131,10 @@ export function Workspace({ login, onLock, onSnapshot, isActive, onDialog }: {
     } catch (error) { report(error); }
     finally { if (isActive()) setBusy(false); }
   }
-  async function saveSettings(next: Settings, password: string, newPassword?: string, recoveryAnswer?: string) {
+  async function saveSettings(next: Settings, newPassword?: string, recoveryAnswer?: string) {
     setBusy(true); setNotice(null);
     try {
-      await api.settings(token, next, password, newPassword, recoveryAnswer);
+      await api.settings(token, next, newPassword, recoveryAnswer);
       if (!isActive()) return t('Session ended.');
       await refresh(); setNotice({ text: t('Settings saved.'), error: false }); return null;
     } catch (error) { const text = errorText(error); report(error); return t(text); }

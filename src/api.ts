@@ -145,10 +145,10 @@ export const api = {
     authorize(token);
     if (!(webActive?.files ?? webFiles).delete(id)) throw new Error('File not found.');
   },
-  async settings(token: string, settings: Settings, password: string, newPassword?: string, recoveryAnswer?: string): Promise<void> {
-    if (native) return invoke('save_settings', { token, settings, password, newPassword: newPassword || null, recoveryAnswer: recoveryAnswer || null });
+  async settings(token: string, settings: Settings, newPassword?: string, recoveryAnswer?: string): Promise<void> {
+    if (native) return invoke('save_settings', { token, settings, newPassword: newPassword || null, recoveryAnswer: recoveryAnswer || null });
     authorize(token);
-    if (!webActive || password !== webActive.password) throw new Error('Incorrect password.');
+    if (!webActive) throw new Error('No container selected.');
     if (newPassword) { validPassword(newPassword); webActive.password = newPassword; }
     if (!settings.recoveryQuestion) webRecoveryAnswer = null;
     else if (recoveryAnswer) webRecoveryAnswer = recoveryAnswer.trim().toLocaleLowerCase();
@@ -230,6 +230,7 @@ const errorAliases: Record<string, string> = {
   'Восстановление пароля не настроено.': 'Password recovery is not configured.',
   'Ошибка системных часов.': 'System clock error.',
   'Введите ответ заново для обновления защиты.': 'Enter the answer again to update protection.',
+  'Введите новый пароль для обновления защиты.': 'Enter a new password to update protection.',
   'Не удалось обработать пароль.': 'Could not process the password.',
   'Не удалось получить ключ шифрования.': 'Could not derive the encryption key.',
   'Ошибка ключа шифрования.': 'Encryption key error.',

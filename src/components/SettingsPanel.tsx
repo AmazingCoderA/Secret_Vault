@@ -1,28 +1,45 @@
 import { useState, type FormEvent } from 'react';
 import { Check, Cpu, KeyRound, Timer, ShieldAlert, CircleHelp, Palette } from 'lucide-react';
-import { modes, type Settings } from '../types';
+import { defaultCustomColors, modes, type Settings, type ThemeColors } from '../types';
 import { useI18n } from '../i18n';
 
-export function SettingsPanel({ settings, busy, onSave }: { settings: Settings; busy: boolean; onSave: (settings: Settings, password: string, next?: string, recoveryAnswer?: string) => Promise<string | null> }) {
+const cssVariables: Record<keyof ThemeColors, string> = { bg: '--bg', surface: '--surface', surfaceHigh: '--surface-high', border: '--border', text: '--text', muted: '--muted', green: '--green', blue: '--blue', danger: '--danger' };
+const themeChoices = [['forest', 'Forest'], ['midnight', 'Midnight'], ['graphite', 'Graphite'], ['ocean', 'Ocean'], ['violet', 'Violet'], ['rose', 'Rose'], ['aurora', 'Aurora'], ['ember', 'Ember'], ['white', 'White'], ['custom', 'Custom']] as const;
+const colorFields: [keyof ThemeColors, string][] = [['bg', 'Background'], ['surface', 'Surface'], ['surfaceHigh', 'Raised surface'], ['border', 'Borders'], ['text', 'Text'], ['muted', 'Muted text'], ['green', 'Accent'], ['blue', 'Secondary accent'], ['danger', 'Danger']];
+
+function applyTheme(settings: Settings) {
+  document.documentElement.dataset.theme = settings.theme;
+  for (const variable of Object.values(cssVariables)) document.documentElement.style.removeProperty(variable);
+  if (settings.theme === 'custom') for (const [key, variable] of Object.entries(cssVariables)) document.documentElement.style.setProperty(variable, settings.customColors[key as keyof ThemeColors]);
+  else document.documentElement.style.setProperty('--green', settings.accentColor);
+}
+
+export function SettingsPanel({ settings, busy, onSave }: { settings: Settings; busy: boolean; onSave: (settings: Settings, next?: string, recoveryAnswer?: string) => Promise<string | null> }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState({ ...settings });
-  const [password, setPassword] = useState('');
   const [next, setNext] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState('');
   const [recoveryAnswer, setRecoveryAnswer] = useState('');
+  function update(nextDraft: Settings) { setDraft(nextDraft); applyTheme(nextDraft); }
+  function setColor(key: keyof ThemeColors, value: string) {
+    update({ ...draft, theme: 'custom', accentColor: key === 'green' ? value : draft.accentColor, customColors: { ...draft.customColors, [key]: value } });
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (next !== confirmation) { setError(t('New passwords do not match.')); return; }
     setError('');
-    const saveError = await onSave(draft, password, next || undefined, recoveryAnswer || undefined);
-    setPassword(''); setNext(''); setConfirmation(''); setRecoveryAnswer('');
+    const saveError = await onSave(draft, next || undefined, recoveryAnswer || undefined);
+    setNext(''); setConfirmation(''); setRecoveryAnswer('');
     setError(saveError ?? '');
   }
   return <form className="settings-form" onSubmit={submit}>
     <section className="settings-section"><div className="section-heading"><Palette size={22} /><div><h2>{t('Theme')}</h2><p>{t('Calculator and vault appearance')}</p></div></div>
-      <div className="theme-grid">{([['forest', 'Forest'], ['midnight', 'Midnight'], ['graphite', 'Graphite'], ['ocean', 'Ocean'], ['violet', 'Violet'], ['rose', 'Rose'], ['aurora', 'Aurora'], ['ember', 'Ember']] as const).map(([id, label]) => <button type="button" disabled={busy} key={id} aria-pressed={draft.theme === id} className={`theme-choice ${draft.theme === id ? 'active' : ''}`} data-preview={id} onClick={() => { setDraft({ ...draft, theme: id }); document.documentElement.dataset.theme = id; }}><span />{t(label)}</button>)}</div>
-      <label className="settings-row"><span>{t('Custom accent color')}</span><input className="color-input" type="color" value={draft.accentColor} disabled={busy} onChange={e => { setDraft({ ...draft, accentColor: e.target.value }); document.documentElement.style.setProperty('--green', e.target.value); }} /></label>
+      <div className="theme-grid">{themeChoices.map(([id, label]) => <button type="button" disabled={busy} key={id} aria-pressed={draft.theme === id} className={`theme-choice ${draft.theme === id ? 'active' : ''}`} data-preview={id} onClick={() => update({ ...draft, theme: id })}><span />{t(label)}</button>)}</div>
+      <label className="settings-row"><span>{t('Custom accent color')}</span><input className="color-input" type="color" value={draft.accentColor} disabled={busy || draft.theme === 'custom'} onChange={e => update({ ...draft, accentColor: e.target.value })} /></label>
+      <div className="custom-colors"><div className="custom-colors-head"><div><strong>{t('Full color editor')}</strong><small>{t('Switches to Custom theme and applies every color live.')}</small></div><button type="button" className="text-button" disabled={busy} onClick={() => update({ ...draft, theme: 'custom', accentColor: defaultCustomColors.green, customColors: defaultCustomColors })}>{t('Reset colors')}</button></div>
+        <div className="color-grid">{colorFields.map(([key, label]) => <label key={key} className="color-tile"><span>{t(label)}</span><input type="color" value={draft.customColors[key]} disabled={busy} onChange={e => setColor(key, e.target.value)} /></label>)}</div>
+      </div>
       <label className="settings-row"><span>{t('Mask file names')}<small>{t('Show “File 1”, “File 2” instead of names')}</small></span><input disabled={busy} className="switch" type="checkbox" checked={draft.maskFileNames} onChange={e => setDraft({ ...draft, maskFileNames: e.target.checked })} /></label>
       <label className="settings-row"><span>{t('Secure record deletion')}<small>{t('SQLite wipes freed pages')}</small></span><input disabled={busy} className="switch" type="checkbox" checked={draft.secureDelete} onChange={e => setDraft({ ...draft, secureDelete: e.target.checked })} /></label>
     </section>
@@ -42,8 +59,7 @@ export function SettingsPanel({ settings, busy, onSave }: { settings: Settings; 
       {draft.recoveryQuestion !== null && <div className="two-fields"><label className="field-label">{t('Recovery question')}<input value={draft.recoveryQuestion} minLength={3} maxLength={200} required disabled={busy} onChange={e => setDraft({ ...draft, recoveryQuestion: e.target.value })} /></label><label className="field-label">{t('Answer')} <span className="muted">({t(settings.recoveryQuestion === draft.recoveryQuestion ? 'leave blank to keep unchanged' : 'required')})</span><input type="password" value={recoveryAnswer} minLength={recoveryAnswer ? 3 : undefined} maxLength={1024} required={settings.recoveryQuestion !== draft.recoveryQuestion} disabled={busy} onChange={e => setRecoveryAnswer(e.target.value)} /></label></div>}
       <p className="setting-help">{t('Use a long unique answer. It wraps the same random container key and allows a forgotten password to be replaced.')}</p>
     </section>
-    <section className="settings-section"><div className="section-heading"><KeyRound size={22} /><div><h2>{t('Confirm changes')}</h2><p>{t('Your current password is required to apply changes')}</p></div></div>
-      <label className="field-label" htmlFor="current-password">{t('Current password')}</label><input id="current-password" type="password" autoComplete="current-password" value={password} required disabled={busy} onChange={e => setPassword(e.target.value)} />
+    <section className="settings-section"><div className="section-heading"><KeyRound size={22} /><div><h2>{t('Save changes')}</h2><p>{t('Unlocked sessions can apply settings without re-entering the current password')}</p></div></div>
       <div className="two-fields"><label className="field-label">{t('New password')} <span className="muted">({t('optional')})</span><input type="password" autoComplete="new-password" minLength={8} maxLength={1024} value={next} disabled={busy} onChange={e => setNext(e.target.value)} /></label><label className="field-label">{t('Repeat new password')}<input type="password" autoComplete="new-password" required={!!next} value={confirmation} disabled={busy} onChange={e => setConfirmation(e.target.value)} /></label></div>
       {error && <p role="alert" className="error-message">{error}</p>}
       <button className="primary-button" disabled={busy}>{t(busy ? 'Applying…' : 'Save settings')}<Check size={18} /></button>

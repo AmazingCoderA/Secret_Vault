@@ -168,13 +168,11 @@ async fn save_settings(
     state: State<'_, Vault>,
     token: String,
     settings: Settings,
-    password: String,
     new_password: Option<String>,
     recovery_answer: Option<String>,
 ) -> Result<()> {
     let store = state.inner().clone();
-    blocking(move || store.save_settings(&token, settings, password, new_password, recovery_answer))
-        .await
+    blocking(move || store.save_settings(&token, settings, new_password, recovery_answer)).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

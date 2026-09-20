@@ -1,5 +1,16 @@
 export type Mode = 'fast' | 'balanced' | 'strong' | 'maximum';
-export type Theme = 'forest' | 'midnight' | 'graphite' | 'ocean' | 'violet' | 'rose' | 'aurora' | 'ember';
+export type Theme = 'forest' | 'midnight' | 'graphite' | 'ocean' | 'violet' | 'rose' | 'aurora' | 'ember' | 'white' | 'custom';
+export interface ThemeColors {
+  bg: string;
+  surface: string;
+  surfaceHigh: string;
+  border: string;
+  text: string;
+  muted: string;
+  green: string;
+  blue: string;
+  danger: string;
+}
 export interface ContainerSummary { id: string; name: string }
 export interface Settings {
   mode: Mode;
@@ -11,13 +22,15 @@ export interface Settings {
   theme: Theme;
   maskFileNames: boolean;
   accentColor: string;
+  customColors: ThemeColors;
   secureDelete: boolean;
 }
 export interface VaultFile { id: string; name: string; size: number; addedAt: number }
 export interface Snapshot { files: VaultFile[]; settings: Settings }
 export interface Login { token: string; snapshot: Snapshot }
 export interface VaultStatus { containers: ContainerSummary[] }
-export const defaultSettings: Settings = { mode: 'balanced', chunkKib: 512, autoLockSecs: 300, lockOnHide: true, equalHoldEnabled: true, recoveryQuestion: null, theme: 'forest', maskFileNames: false, accentColor: '#9be8c4', secureDelete: true };
+export const defaultCustomColors: ThemeColors = { bg: '#101716', surface: '#18211f', surfaceHigh: '#202c28', border: '#2a3531', text: '#e4ece8', muted: '#8e9e96', green: '#9be8c4', blue: '#96cde4', danger: '#ffb4ab' };
+export const defaultSettings: Settings = { mode: 'balanced', chunkKib: 512, autoLockSecs: 300, lockOnHide: true, equalHoldEnabled: true, recoveryQuestion: null, theme: 'forest', maskFileNames: false, accentColor: '#9be8c4', customColors: defaultCustomColors, secureDelete: true };
 export const modes: { id: Mode; name: string; memory: number; iterations: number; description: string }[] = [
   { id: 'fast', name: 'Fast', memory: 16, iterations: 2, description: 'For low-powered devices' },
   { id: 'balanced', name: 'Balanced', memory: 32, iterations: 3, description: 'For everyday use' },

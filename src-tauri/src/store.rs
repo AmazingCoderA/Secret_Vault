@@ -48,6 +48,8 @@ pub enum Theme {
     Rose,
     Aurora,
     Ember,
+    White,
+    Custom,
 }
 
 impl Theme {
@@ -61,6 +63,8 @@ impl Theme {
             Self::Rose => "rose",
             Self::Aurora => "aurora",
             Self::Ember => "ember",
+            Self::White => "white",
+            Self::Custom => "custom",
         }
     }
 
@@ -74,6 +78,8 @@ impl Theme {
             "rose" => Ok(Self::Rose),
             "aurora" => Ok(Self::Aurora),
             "ember" => Ok(Self::Ember),
+            "white" => Ok(Self::White),
+            "custom" => Ok(Self::Custom),
             _ => Err("Неизвестная тема.".into()),
         }
     }
@@ -112,6 +118,55 @@ impl ProtectionMode {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ThemeColors {
+    pub bg: String,
+    pub surface: String,
+    pub surface_high: String,
+    pub border: String,
+    pub text: String,
+    pub muted: String,
+    pub green: String,
+    pub blue: String,
+    pub danger: String,
+}
+
+impl Default for ThemeColors {
+    fn default() -> Self {
+        Self {
+            bg: "#101716".into(),
+            surface: "#18211f".into(),
+            surface_high: "#202c28".into(),
+            border: "#2a3531".into(),
+            text: "#e4ece8".into(),
+            muted: "#8e9e96".into(),
+            green: "#9be8c4".into(),
+            blue: "#96cde4".into(),
+            danger: "#ffb4ab".into(),
+        }
+    }
+}
+
+impl ThemeColors {
+    fn validate(&self) -> Result<()> {
+        for color in [
+            &self.bg,
+            &self.surface,
+            &self.surface_high,
+            &self.border,
+            &self.text,
+            &self.muted,
+            &self.green,
+            &self.blue,
+            &self.danger,
+        ] {
+            validate_color(color)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub mode: ProtectionMode,
     pub chunk_kib: u32,
@@ -122,6 +177,7 @@ pub struct Settings {
     pub theme: Theme,
     pub mask_file_names: bool,
     pub accent_color: String,
+    pub custom_colors: ThemeColors,
     pub secure_delete: bool,
 }
 
@@ -137,6 +193,7 @@ impl Default for Settings {
             theme: Theme::Forest,
             mask_file_names: false,
             accent_color: "#9be8c4".into(),
+            custom_colors: ThemeColors::default(),
             secure_delete: true,
         }
     }
@@ -149,14 +206,8 @@ impl Settings {
         {
             return Err("Некорректные настройки.".into());
         }
-        if self.accent_color.len() != 7
-            || !self.accent_color.starts_with('#')
-            || !self.accent_color[1..]
-                .chars()
-                .all(|c| c.is_ascii_hexdigit())
-        {
-            return Err("Некорректный цвет интерфейса.".into());
-        }
+        validate_color(&self.accent_color)?;
+        self.custom_colors.validate()?;
         Ok(())
     }
 }
@@ -227,6 +278,32 @@ fn guard<T>(mutex: &Mutex<T>) -> Result<MutexGuard<'_, T>> {
         .map_err(|_| "Внутренняя ошибка. Перезапустите приложение.".into())
 }
 
+fn validate_color(color: &str) -> Result<()> {
+    if color.len() == 7
+        && color.starts_with('#')
+        && color[1..].chars().all(|c| c.is_ascii_hexdigit())
+    {
+        Ok(())
+    } else {
+        Err("Некорректный цвет интерфейса.".into())
+    }
+}
+
+fn custom_colors_json(colors: &ThemeColors) -> Result<String> {
+    serde_json::to_string(colors).map_err(|_| "Некорректные настройки.".into())
+}
+
+fn parse_custom_colors(value: Option<String>) -> Result<ThemeColors> {
+    let colors = match value {
+        Some(value) if !value.trim().is_empty() => {
+            serde_json::from_str(&value).map_err(|_| "Некорректные настройки.".to_string())?
+        }
+        _ => ThemeColors::default(),
+    };
+    colors.validate()?;
+    Ok(colors)
+}
+
 impl Store {
     pub fn open(path: &Path) -> Result<Self> {
         let db = Connection::open(path).map_err(db_error)?;
@@ -238,14 +315,17 @@ impl Store {
                mode TEXT NOT NULL, chunk_kib INTEGER NOT NULL,
                auto_lock_secs INTEGER NOT NULL, lock_on_hide INTEGER NOT NULL,
                equal_hold_enabled INTEGER NOT NULL DEFAULT 1,
-               recovery_question TEXT, recovery_answer_hash TEXT,
-               theme TEXT NOT NULL DEFAULT 'forest',
-               vault_key_salt BLOB, vault_key_nonce BLOB, wrapped_vault_key BLOB,
-               recovery_key_salt BLOB, recovery_key_nonce BLOB, recovery_wrapped_vault_key BLOB,
-               mask_file_names INTEGER NOT NULL DEFAULT 0,
-               accent_color TEXT NOT NULL DEFAULT '#9be8c4',
-               secure_delete INTEGER NOT NULL DEFAULT 1
-             );
+                recovery_question TEXT, recovery_answer_hash TEXT,
+                theme TEXT NOT NULL DEFAULT 'forest',
+                vault_key_salt BLOB, vault_key_nonce BLOB, wrapped_vault_key BLOB,
+                vault_key_mode TEXT,
+                recovery_key_salt BLOB, recovery_key_nonce BLOB, recovery_wrapped_vault_key BLOB,
+                recovery_key_mode TEXT,
+                mask_file_names INTEGER NOT NULL DEFAULT 0,
+                accent_color TEXT NOT NULL DEFAULT '#9be8c4',
+                custom_colors TEXT,
+                secure_delete INTEGER NOT NULL DEFAULT 1
+              );
              CREATE TABLE IF NOT EXISTS files (
                id TEXT PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL,
                added_at INTEGER NOT NULL, data BLOB NOT NULL
@@ -260,11 +340,14 @@ impl Store {
         ensure_column(&db, "vault_key_salt", "BLOB")?;
         ensure_column(&db, "vault_key_nonce", "BLOB")?;
         ensure_column(&db, "wrapped_vault_key", "BLOB")?;
+        ensure_column(&db, "vault_key_mode", "TEXT")?;
         ensure_column(&db, "recovery_key_salt", "BLOB")?;
         ensure_column(&db, "recovery_key_nonce", "BLOB")?;
         ensure_column(&db, "recovery_wrapped_vault_key", "BLOB")?;
+        ensure_column(&db, "recovery_key_mode", "TEXT")?;
         ensure_column(&db, "mask_file_names", "INTEGER NOT NULL DEFAULT 0")?;
         ensure_column(&db, "accent_color", "TEXT NOT NULL DEFAULT '#9be8c4'")?;
+        ensure_column(&db, "custom_colors", "TEXT")?;
         ensure_column(&db, "secure_delete", "INTEGER NOT NULL DEFAULT 1")?;
         Ok(Self {
             db: Mutex::new(db),
@@ -352,13 +435,18 @@ impl Store {
     ) -> Result<Zeroizing<[u8; 32]>> {
         let wrapped = guard(&self.db)?
             .query_row(
-                "SELECT vault_key_salt, vault_key_nonce, wrapped_vault_key FROM config WHERE id = 1",
+                "SELECT vault_key_salt, vault_key_nonce, wrapped_vault_key, vault_key_mode FROM config WHERE id = 1",
                 [],
-                |r| Ok((r.get::<_, Option<Vec<u8>>>(0)?, r.get::<_, Option<Vec<u8>>>(1)?, r.get::<_, Option<Vec<u8>>>(2)?)),
+                |r| Ok((r.get::<_, Option<Vec<u8>>>(0)?, r.get::<_, Option<Vec<u8>>>(1)?, r.get::<_, Option<Vec<u8>>>(2)?, r.get::<_, Option<String>>(3)?)),
             )
             .map_err(db_error)?;
-        if let (Some(salt), Some(nonce), Some(data)) = wrapped {
-            return unwrap_key(&WrappedKey { salt, nonce, data }, password, mode);
+        if let (Some(salt), Some(nonce), Some(data), stored_mode) = wrapped {
+            let key_mode = stored_mode
+                .as_deref()
+                .map(ProtectionMode::parse)
+                .transpose()?
+                .unwrap_or(mode);
+            return unwrap_key(&WrappedKey { salt, nonce, data }, password, key_mode);
         }
 
         let mut key = Zeroizing::new([0u8; 32]);
@@ -393,8 +481,8 @@ impl Store {
             }
         }
         tx.execute(
-            "UPDATE config SET vault_key_salt = ?1, vault_key_nonce = ?2, wrapped_vault_key = ?3 WHERE id = 1",
-            params![wrapped.salt, wrapped.nonce, wrapped.data],
+            "UPDATE config SET vault_key_salt = ?1, vault_key_nonce = ?2, wrapped_vault_key = ?3, vault_key_mode = ?4 WHERE id = 1",
+            params![wrapped.salt, wrapped.nonce, wrapped.data, mode.as_str()],
         )
         .map_err(db_error)?;
         tx.commit().map_err(db_error)?;
@@ -462,8 +550,9 @@ impl Store {
         if self.epoch.load(Ordering::SeqCst) != epoch {
             return Err(LOCKED.into());
         }
+        let custom_colors = custom_colors_json(&settings.custom_colors)?;
         db.execute(
-            "INSERT INTO config (id, password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, theme, vault_key_salt, vault_key_nonce, wrapped_vault_key) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO config (id, password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, theme, vault_key_salt, vault_key_nonce, wrapped_vault_key, vault_key_mode, custom_colors) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 hash,
                 settings.mode.as_str(),
@@ -475,6 +564,8 @@ impl Store {
                 wrapped.salt,
                 wrapped.nonce,
                 wrapped.data,
+                settings.mode.as_str(),
+                custom_colors,
             ],
         )
         .map_err(db_error)?;
@@ -534,9 +625,9 @@ impl Store {
         }
         self.check_attempts()?;
         validate_password(&new_password)?;
-        let (answer_hash, settings, recovery_wrapped) = self.recovery_config()?;
+        let (answer_hash, settings, recovery_wrapped, recovery_mode) = self.recovery_config()?;
         self.verify_secret(&answer, &answer_hash, "Неверный ответ.")?;
-        let key = unwrap_key(&recovery_wrapped, &answer, settings.mode)?;
+        let key = unwrap_key(&recovery_wrapped, &answer, recovery_mode)?;
         let password_hash = hash_password(&new_password, settings.mode)?;
         let password_wrapped = wrap_key(&key, &new_password, settings.mode)?;
         if self.authentication_epoch() != epoch {
@@ -544,8 +635,8 @@ impl Store {
         }
         guard(&self.db)?
             .execute(
-                "UPDATE config SET password_hash = ?1, vault_key_salt = ?2, vault_key_nonce = ?3, wrapped_vault_key = ?4 WHERE id = 1",
-                params![password_hash, password_wrapped.salt, password_wrapped.nonce, password_wrapped.data],
+                "UPDATE config SET password_hash = ?1, vault_key_salt = ?2, vault_key_nonce = ?3, wrapped_vault_key = ?4, vault_key_mode = ?5 WHERE id = 1",
+                params![password_hash, password_wrapped.salt, password_wrapped.nonce, password_wrapped.data, settings.mode.as_str()],
             )
             .map_err(db_error)?;
         let token = self.start_session(epoch, &settings, key)?;
@@ -593,8 +684,8 @@ impl Store {
     fn config(&self) -> Result<(String, Settings)> {
         let db = guard(&self.db)?;
         let row = db.query_row(
-            "SELECT password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, recovery_question, theme, mask_file_names, accent_color, secure_delete FROM config WHERE id = 1",
-            [], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get::<_, String>(7)?, r.get(8)?, r.get(9)?, r.get(10)?))
+            "SELECT password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, recovery_question, theme, mask_file_names, accent_color, secure_delete, custom_colors FROM config WHERE id = 1",
+            [], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get::<_, String>(7)?, r.get(8)?, r.get(9)?, r.get(10)?, r.get::<_, Option<String>>(11)?))
         ).optional().map_err(db_error)?.ok_or("Сначала создайте хранилище.")?;
         Ok((
             row.0,
@@ -609,22 +700,28 @@ impl Store {
                 mask_file_names: row.8,
                 accent_color: row.9,
                 secure_delete: row.10,
+                custom_colors: parse_custom_colors(row.11)?,
             },
         ))
     }
 
-    fn recovery_config(&self) -> Result<(String, Settings, WrappedKey)> {
+    fn recovery_config(&self) -> Result<(String, Settings, WrappedKey, ProtectionMode)> {
         let settings = self.config()?.1;
         let row = guard(&self.db)?
             .query_row(
-                "SELECT recovery_answer_hash, recovery_key_salt, recovery_key_nonce, recovery_wrapped_vault_key FROM config WHERE id = 1",
+                "SELECT recovery_answer_hash, recovery_key_salt, recovery_key_nonce, recovery_wrapped_vault_key, recovery_key_mode FROM config WHERE id = 1",
                 [],
-                |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<Vec<u8>>>(1)?, r.get::<_, Option<Vec<u8>>>(2)?, r.get::<_, Option<Vec<u8>>>(3)?)),
+                |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<Vec<u8>>>(1)?, r.get::<_, Option<Vec<u8>>>(2)?, r.get::<_, Option<Vec<u8>>>(3)?, r.get::<_, Option<String>>(4)?)),
             )
             .map_err(db_error)?;
         match row {
-            (Some(hash), Some(salt), Some(nonce), Some(data)) => {
-                Ok((hash, settings, WrappedKey { salt, nonce, data }))
+            (Some(hash), Some(salt), Some(nonce), Some(data), mode) => {
+                let key_mode = mode
+                    .as_deref()
+                    .map(ProtectionMode::parse)
+                    .transpose()?
+                    .unwrap_or(settings.mode);
+                Ok((hash, settings, WrappedKey { salt, nonce, data }, key_mode))
             }
             _ => Err("Восстановление пароля не настроено.".into()),
         }
@@ -781,23 +878,49 @@ impl Store {
         &self,
         token: &str,
         settings: Settings,
-        password: String,
         new_password: Option<String>,
         recovery_answer: Option<String>,
     ) -> Result<()> {
-        let password = Zeroizing::new(password);
         let new_password = new_password.map(Zeroizing::new);
         let recovery_answer = recovery_answer.map(|value| Zeroizing::new(normalize_answer(&value)));
         let key = self.session_key(token)?;
         settings.validate()?;
         let _auth = guard(&self.auth)?;
-        self.check_attempts()?;
         let (old_hash, old_settings) = self.config()?;
-        self.verify(&password, &old_hash)?;
-        let chosen = new_password.as_deref().unwrap_or(&password);
-        validate_password(chosen)?;
-        let hash = hash_password(chosen, settings.mode)?;
-        let password_wrapped = wrap_key(&key, chosen, settings.mode)?;
+        let old_password_wrapped = guard(&self.db)?
+            .query_row(
+                "SELECT vault_key_salt, vault_key_nonce, wrapped_vault_key, vault_key_mode FROM config WHERE id = 1",
+                [],
+                |r| {
+                    Ok((
+                        r.get::<_, Option<Vec<u8>>>(0)?,
+                        r.get::<_, Option<Vec<u8>>>(1)?,
+                        r.get::<_, Option<Vec<u8>>>(2)?,
+                        r.get::<_, Option<String>>(3)?,
+                    ))
+                },
+            )
+            .map_err(db_error)?;
+        let (hash, password_wrapped, vault_key_mode) = if let Some(password) =
+            new_password.as_deref()
+        {
+            validate_password(password)?;
+            (
+                hash_password(password, settings.mode)?,
+                wrap_key(&key, password, settings.mode)?,
+                settings.mode,
+            )
+        } else {
+            let (Some(salt), Some(nonce), Some(data), stored_mode) = old_password_wrapped else {
+                return Err("Введите новый пароль для обновления защиты.".into());
+            };
+            let key_mode = stored_mode
+                .as_deref()
+                .map(ProtectionMode::parse)
+                .transpose()?
+                .unwrap_or(old_settings.mode);
+            (old_hash, WrappedKey { salt, nonce, data }, key_mode)
+        };
         let question = settings
             .recovery_question
             .as_deref()
@@ -805,7 +928,7 @@ impl Store {
             .transpose()?;
         let old_recovery = guard(&self.db)?
             .query_row(
-                "SELECT recovery_question, recovery_answer_hash, recovery_key_salt, recovery_key_nonce, recovery_wrapped_vault_key FROM config WHERE id = 1",
+                "SELECT recovery_question, recovery_answer_hash, recovery_key_salt, recovery_key_nonce, recovery_wrapped_vault_key, recovery_key_mode FROM config WHERE id = 1",
                 [],
                 |r| {
                     Ok((
@@ -814,31 +937,36 @@ impl Store {
                         r.get::<_, Option<Vec<u8>>>(2)?,
                         r.get::<_, Option<Vec<u8>>>(3)?,
                         r.get::<_, Option<Vec<u8>>>(4)?,
+                        r.get::<_, Option<String>>(5)?,
                     ))
                 },
             )
             .map_err(db_error)?;
-        let (answer_hash, recovery_wrapped) =
+        let (answer_hash, recovery_wrapped, recovery_key_mode) =
             match (question.as_deref(), recovery_answer.as_deref()) {
-                (None, _) => (None, None),
+                (None, _) => (None, None, None),
                 (Some(_), Some(answer)) => {
                     validate_answer(answer)?;
                     (
                         Some(hash_password(answer, settings.mode)?),
                         Some(wrap_key(&key, answer, settings.mode)?),
+                        Some(settings.mode),
                     )
                 }
-                (Some(current), None)
-                    if old_recovery.0.as_deref() == Some(current)
-                        && old_settings.mode == settings.mode =>
-                {
+                (Some(current), None) if old_recovery.0.as_deref() == Some(current) => {
                     let wrapped = match (old_recovery.2, old_recovery.3, old_recovery.4) {
                         (Some(salt), Some(nonce), Some(data)) => {
                             Some(WrappedKey { salt, nonce, data })
                         }
                         _ => return Err("Введите ответ заново для обновления защиты.".into()),
                     };
-                    (old_recovery.1, wrapped)
+                    let key_mode = old_recovery
+                        .5
+                        .as_deref()
+                        .map(ProtectionMode::parse)
+                        .transpose()?
+                        .unwrap_or(old_settings.mode);
+                    (old_recovery.1, wrapped, Some(key_mode))
                 }
                 (Some(_), None) => return Err("Введите ответ для контрольного вопроса.".into()),
             };
@@ -846,10 +974,12 @@ impl Store {
             Some(wrapped) => (Some(wrapped.salt), Some(wrapped.nonce), Some(wrapped.data)),
             None => (None, None, None),
         };
+        let recovery_key_mode = recovery_key_mode.map(|mode| mode.as_str());
+        let custom_colors = custom_colors_json(&settings.custom_colors)?;
         let db = guard(&self.db)?;
         self.authorize(token)?;
-        db.execute("UPDATE config SET password_hash = ?1, mode = ?2, chunk_kib = ?3, auto_lock_secs = ?4, lock_on_hide = ?5, equal_hold_enabled = ?6, recovery_question = ?7, recovery_answer_hash = ?8, theme = ?9, vault_key_salt = ?10, vault_key_nonce = ?11, wrapped_vault_key = ?12, recovery_key_salt = ?13, recovery_key_nonce = ?14, recovery_wrapped_vault_key = ?15, mask_file_names = ?16, accent_color = ?17, secure_delete = ?18 WHERE id = 1",
-            params![hash, settings.mode.as_str(), settings.chunk_kib, settings.auto_lock_secs, settings.lock_on_hide, settings.equal_hold_enabled, question, answer_hash, settings.theme.as_str(), password_wrapped.salt, password_wrapped.nonce, password_wrapped.data, recovery_salt, recovery_nonce, recovery_data, settings.mask_file_names, settings.accent_color, settings.secure_delete]).map_err(db_error)?;
+        db.execute("UPDATE config SET password_hash = ?1, mode = ?2, chunk_kib = ?3, auto_lock_secs = ?4, lock_on_hide = ?5, equal_hold_enabled = ?6, recovery_question = ?7, recovery_answer_hash = ?8, theme = ?9, vault_key_salt = ?10, vault_key_nonce = ?11, wrapped_vault_key = ?12, vault_key_mode = ?13, recovery_key_salt = ?14, recovery_key_nonce = ?15, recovery_wrapped_vault_key = ?16, recovery_key_mode = ?17, mask_file_names = ?18, accent_color = ?19, custom_colors = ?20, secure_delete = ?21 WHERE id = 1",
+            params![hash, settings.mode.as_str(), settings.chunk_kib, settings.auto_lock_secs, settings.lock_on_hide, settings.equal_hold_enabled, question, answer_hash, settings.theme.as_str(), password_wrapped.salt, password_wrapped.nonce, password_wrapped.data, vault_key_mode.as_str(), recovery_salt, recovery_nonce, recovery_data, recovery_key_mode, settings.mask_file_names, settings.accent_color, custom_colors, settings.secure_delete]).map_err(db_error)?;
         if let Some(session) = guard(&self.session)?.as_mut() {
             session.timeout = Duration::from_secs(settings.auto_lock_secs.into());
         }
@@ -1159,16 +1289,13 @@ mod tests {
             theme: Theme::Midnight,
             mask_file_names: true,
             accent_color: "#abcdef".into(),
+            custom_colors: ThemeColors::default(),
             secure_delete: true,
         };
-        assert!(store
-            .save_settings(&login.token, settings.clone(), "wrong".into(), None, None)
-            .is_err());
         store
             .save_settings(
                 &login.token,
                 settings,
-                "old password".into(),
                 Some("new password".into()),
                 Some(" Барсик ".into()),
             )

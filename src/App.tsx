@@ -7,6 +7,8 @@ import { Auth } from './components/Auth';
 import { Workspace } from './components/Workspace';
 import { useI18n } from './i18n';
 
+const colorVariables = { bg: '--bg', surface: '--surface', surfaceHigh: '--surface-high', border: '--border', text: '--text', muted: '--muted', green: '--green', blue: '--blue', danger: '--danger' } as const;
+
 export function App() {
   const { t } = useI18n();
   const [screen, setScreen] = useState<'calculator' | 'auth' | 'vault'>('calculator');
@@ -49,9 +51,15 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const selected = login?.snapshot.settings.theme ?? theme;
+    const settings = login?.snapshot.settings;
+    const selected = settings?.theme ?? theme;
     document.documentElement.dataset.theme = selected;
-    document.documentElement.style.setProperty('--green', login?.snapshot.settings.accentColor ?? '#9be8c4');
+    for (const variable of Object.values(colorVariables)) document.documentElement.style.removeProperty(variable);
+    if (settings?.theme === 'custom') {
+      for (const [key, variable] of Object.entries(colorVariables)) document.documentElement.style.setProperty(variable, settings.customColors[key as keyof typeof settings.customColors]);
+    } else {
+      document.documentElement.style.setProperty('--green', settings?.accentColor ?? '#9be8c4');
+    }
   }, [login, theme]);
 
   useEffect(() => {
