@@ -49,6 +49,14 @@ pub enum Theme {
     Aurora,
     Ember,
     White,
+    Arctic,
+    Sunset,
+    Mint,
+    Copper,
+    Neon,
+    Sand,
+    Crimson,
+    Hacker,
     Custom,
 }
 
@@ -64,6 +72,14 @@ impl Theme {
             Self::Aurora => "aurora",
             Self::Ember => "ember",
             Self::White => "white",
+            Self::Arctic => "arctic",
+            Self::Sunset => "sunset",
+            Self::Mint => "mint",
+            Self::Copper => "copper",
+            Self::Neon => "neon",
+            Self::Sand => "sand",
+            Self::Crimson => "crimson",
+            Self::Hacker => "hacker",
             Self::Custom => "custom",
         }
     }
@@ -79,6 +95,14 @@ impl Theme {
             "aurora" => Ok(Self::Aurora),
             "ember" => Ok(Self::Ember),
             "white" => Ok(Self::White),
+            "arctic" => Ok(Self::Arctic),
+            "sunset" => Ok(Self::Sunset),
+            "mint" => Ok(Self::Mint),
+            "copper" => Ok(Self::Copper),
+            "neon" => Ok(Self::Neon),
+            "sand" => Ok(Self::Sand),
+            "crimson" => Ok(Self::Crimson),
+            "hacker" => Ok(Self::Hacker),
             "custom" => Ok(Self::Custom),
             _ => Err("Неизвестная тема.".into()),
         }
@@ -178,6 +202,8 @@ pub struct Settings {
     pub mask_file_names: bool,
     pub accent_color: String,
     pub custom_colors: ThemeColors,
+    pub brand_name: String,
+    pub brand_icon: String,
     pub secure_delete: bool,
 }
 
@@ -194,6 +220,8 @@ impl Default for Settings {
             mask_file_names: false,
             accent_color: "#9be8c4".into(),
             custom_colors: ThemeColors::default(),
+            brand_name: "Secret Vault".into(),
+            brand_icon: "shield".into(),
             secure_delete: true,
         }
     }
@@ -208,6 +236,7 @@ impl Settings {
         }
         validate_color(&self.accent_color)?;
         self.custom_colors.validate()?;
+        validate_brand(&self.brand_name, &self.brand_icon)?;
         Ok(())
     }
 }
@@ -289,6 +318,14 @@ fn validate_color(color: &str) -> Result<()> {
     }
 }
 
+fn validate_brand(name: &str, icon: &str) -> Result<()> {
+    let name_len = name.trim().chars().count();
+    if !(1..=32).contains(&name_len) || icon.trim().chars().count() > 24 {
+        return Err("Некорректные настройки бренда.".into());
+    }
+    Ok(())
+}
+
 fn custom_colors_json(colors: &ThemeColors) -> Result<String> {
     serde_json::to_string(colors).map_err(|_| "Некорректные настройки.".into())
 }
@@ -324,6 +361,8 @@ impl Store {
                 mask_file_names INTEGER NOT NULL DEFAULT 0,
                 accent_color TEXT NOT NULL DEFAULT '#9be8c4',
                 custom_colors TEXT,
+                brand_name TEXT NOT NULL DEFAULT 'Secret Vault',
+                brand_icon TEXT NOT NULL DEFAULT 'shield',
                 secure_delete INTEGER NOT NULL DEFAULT 1
               );
              CREATE TABLE IF NOT EXISTS files (
@@ -348,6 +387,8 @@ impl Store {
         ensure_column(&db, "mask_file_names", "INTEGER NOT NULL DEFAULT 0")?;
         ensure_column(&db, "accent_color", "TEXT NOT NULL DEFAULT '#9be8c4'")?;
         ensure_column(&db, "custom_colors", "TEXT")?;
+        ensure_column(&db, "brand_name", "TEXT NOT NULL DEFAULT 'Secret Vault'")?;
+        ensure_column(&db, "brand_icon", "TEXT NOT NULL DEFAULT 'shield'")?;
         ensure_column(&db, "secure_delete", "INTEGER NOT NULL DEFAULT 1")?;
         Ok(Self {
             db: Mutex::new(db),
@@ -552,7 +593,7 @@ impl Store {
         }
         let custom_colors = custom_colors_json(&settings.custom_colors)?;
         db.execute(
-            "INSERT INTO config (id, password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, theme, vault_key_salt, vault_key_nonce, wrapped_vault_key, vault_key_mode, custom_colors) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            "INSERT INTO config (id, password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, theme, vault_key_salt, vault_key_nonce, wrapped_vault_key, vault_key_mode, custom_colors, brand_name, brand_icon) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 hash,
                 settings.mode.as_str(),
@@ -566,6 +607,8 @@ impl Store {
                 wrapped.data,
                 settings.mode.as_str(),
                 custom_colors,
+                settings.brand_name,
+                settings.brand_icon,
             ],
         )
         .map_err(db_error)?;
@@ -684,8 +727,8 @@ impl Store {
     fn config(&self) -> Result<(String, Settings)> {
         let db = guard(&self.db)?;
         let row = db.query_row(
-            "SELECT password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, recovery_question, theme, mask_file_names, accent_color, secure_delete, custom_colors FROM config WHERE id = 1",
-            [], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get::<_, String>(7)?, r.get(8)?, r.get(9)?, r.get(10)?, r.get::<_, Option<String>>(11)?))
+            "SELECT password_hash, mode, chunk_kib, auto_lock_secs, lock_on_hide, equal_hold_enabled, recovery_question, theme, mask_file_names, accent_color, secure_delete, custom_colors, brand_name, brand_icon FROM config WHERE id = 1",
+            [], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get::<_, String>(7)?, r.get(8)?, r.get(9)?, r.get(10)?, r.get::<_, Option<String>>(11)?, r.get(12)?, r.get(13)?))
         ).optional().map_err(db_error)?.ok_or("Сначала создайте хранилище.")?;
         Ok((
             row.0,
@@ -701,6 +744,8 @@ impl Store {
                 accent_color: row.9,
                 secure_delete: row.10,
                 custom_colors: parse_custom_colors(row.11)?,
+                brand_name: row.12,
+                brand_icon: row.13,
             },
         ))
     }
@@ -978,8 +1023,8 @@ impl Store {
         let custom_colors = custom_colors_json(&settings.custom_colors)?;
         let db = guard(&self.db)?;
         self.authorize(token)?;
-        db.execute("UPDATE config SET password_hash = ?1, mode = ?2, chunk_kib = ?3, auto_lock_secs = ?4, lock_on_hide = ?5, equal_hold_enabled = ?6, recovery_question = ?7, recovery_answer_hash = ?8, theme = ?9, vault_key_salt = ?10, vault_key_nonce = ?11, wrapped_vault_key = ?12, vault_key_mode = ?13, recovery_key_salt = ?14, recovery_key_nonce = ?15, recovery_wrapped_vault_key = ?16, recovery_key_mode = ?17, mask_file_names = ?18, accent_color = ?19, custom_colors = ?20, secure_delete = ?21 WHERE id = 1",
-            params![hash, settings.mode.as_str(), settings.chunk_kib, settings.auto_lock_secs, settings.lock_on_hide, settings.equal_hold_enabled, question, answer_hash, settings.theme.as_str(), password_wrapped.salt, password_wrapped.nonce, password_wrapped.data, vault_key_mode.as_str(), recovery_salt, recovery_nonce, recovery_data, recovery_key_mode, settings.mask_file_names, settings.accent_color, custom_colors, settings.secure_delete]).map_err(db_error)?;
+        db.execute("UPDATE config SET password_hash = ?1, mode = ?2, chunk_kib = ?3, auto_lock_secs = ?4, lock_on_hide = ?5, equal_hold_enabled = ?6, recovery_question = ?7, recovery_answer_hash = ?8, theme = ?9, vault_key_salt = ?10, vault_key_nonce = ?11, wrapped_vault_key = ?12, vault_key_mode = ?13, recovery_key_salt = ?14, recovery_key_nonce = ?15, recovery_wrapped_vault_key = ?16, recovery_key_mode = ?17, mask_file_names = ?18, accent_color = ?19, custom_colors = ?20, brand_name = ?21, brand_icon = ?22, secure_delete = ?23 WHERE id = 1",
+            params![hash, settings.mode.as_str(), settings.chunk_kib, settings.auto_lock_secs, settings.lock_on_hide, settings.equal_hold_enabled, question, answer_hash, settings.theme.as_str(), password_wrapped.salt, password_wrapped.nonce, password_wrapped.data, vault_key_mode.as_str(), recovery_salt, recovery_nonce, recovery_data, recovery_key_mode, settings.mask_file_names, settings.accent_color, custom_colors, settings.brand_name, settings.brand_icon, settings.secure_delete]).map_err(db_error)?;
         if let Some(session) = guard(&self.session)?.as_mut() {
             session.timeout = Duration::from_secs(settings.auto_lock_secs.into());
         }
@@ -1290,6 +1335,8 @@ mod tests {
             mask_file_names: true,
             accent_color: "#abcdef".into(),
             custom_colors: ThemeColors::default(),
+            brand_name: "Secret Vault".into(),
+            brand_icon: "shield".into(),
             secure_delete: true,
         };
         store

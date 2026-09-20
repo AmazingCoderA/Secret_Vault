@@ -5,6 +5,6 @@ Name[ru]=Secret Vault
 Comment=Private encrypted file vault hidden behind a calculator
 Comment[ru]=Приватное зашифрованное хранилище, скрытое за калькулятором
 Exec=vault-calculator
-Icon=app.local.vaultcalculator
+Icon=io.github.amazingcodera.secretvault
 Categories=Utility;
 Terminal=false

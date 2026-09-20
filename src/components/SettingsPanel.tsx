@@ -4,8 +4,10 @@ import { defaultCustomColors, modes, type Settings, type ThemeColors } from '../
 import { useI18n } from '../i18n';
 
 const cssVariables: Record<keyof ThemeColors, string> = { bg: '--bg', surface: '--surface', surfaceHigh: '--surface-high', border: '--border', text: '--text', muted: '--muted', green: '--green', blue: '--blue', danger: '--danger' };
-const themeChoices = [['forest', 'Forest'], ['midnight', 'Midnight'], ['graphite', 'Graphite'], ['ocean', 'Ocean'], ['violet', 'Violet'], ['rose', 'Rose'], ['aurora', 'Aurora'], ['ember', 'Ember'], ['white', 'White'], ['custom', 'Custom']] as const;
+const themeChoices = [['forest', 'Forest'], ['midnight', 'Midnight'], ['graphite', 'Graphite'], ['ocean', 'Ocean'], ['violet', 'Violet'], ['rose', 'Rose'], ['aurora', 'Aurora'], ['ember', 'Ember'], ['white', 'White'], ['arctic', 'Arctic'], ['sunset', 'Sunset'], ['mint', 'Mint'], ['copper', 'Copper'], ['neon', 'Neon'], ['sand', 'Sand'], ['crimson', 'Crimson'], ['hacker', 'Hacker'], ['custom', 'Custom']] as const;
 const colorFields: [keyof ThemeColors, string][] = [['bg', 'Background'], ['surface', 'Surface'], ['surfaceHigh', 'Raised surface'], ['border', 'Borders'], ['text', 'Text'], ['muted', 'Muted text'], ['green', 'Accent'], ['blue', 'Secondary accent'], ['danger', 'Danger']];
+const brandIcons = ['shield', 'lock', 'calc', 'folder', 'star', 'diamond', 'ghost', 'bolt'];
+const brandIconPreview = (icon: string) => ({ shield: 'SV', lock: 'LK', calc: '01', folder: 'FD', star: '**', diamond: '<>', ghost: 'GH', bolt: '!!' } as Record<string, string>)[icon] ?? icon.slice(0, 4).toUpperCase();
 
 function applyTheme(settings: Settings) {
   document.documentElement.dataset.theme = settings.theme;
@@ -39,6 +41,11 @@ export function SettingsPanel({ settings, busy, onSave }: { settings: Settings; 
       <label className="settings-row"><span>{t('Custom accent color')}</span><input className="color-input" type="color" value={draft.accentColor} disabled={busy || draft.theme === 'custom'} onChange={e => update({ ...draft, accentColor: e.target.value })} /></label>
       <div className="custom-colors"><div className="custom-colors-head"><div><strong>{t('Full color editor')}</strong><small>{t('Switches to Custom theme and applies every color live.')}</small></div><button type="button" className="text-button" disabled={busy} onClick={() => update({ ...draft, theme: 'custom', accentColor: defaultCustomColors.green, customColors: defaultCustomColors })}>{t('Reset colors')}</button></div>
         <div className="color-grid">{colorFields.map(([key, label]) => <label key={key} className="color-tile"><span>{t(label)}</span><input type="color" value={draft.customColors[key]} disabled={busy} onChange={e => setColor(key, e.target.value)} /></label>)}</div>
+      </div>
+      <div className="brand-settings"><div className="custom-colors-head"><div><strong>{t('App branding')}</strong><small>{t('Shown inside the vault on every platform.')}</small></div></div>
+        <label className="field-label">{t('App name')}<input value={draft.brandName} maxLength={32} required disabled={busy} onChange={e => setDraft({ ...draft, brandName: e.target.value })} /></label>
+        <div className="icon-grid" role="group" aria-label={t('App icon')}>{brandIcons.map(icon => <button type="button" key={icon} disabled={busy} className={draft.brandIcon === icon ? 'active' : ''} aria-pressed={draft.brandIcon === icon} onClick={() => setDraft({ ...draft, brandIcon: icon })}>{brandIconPreview(icon)}</button>)}</div>
+        <label className="field-label">{t('Custom icon text')}<input value={draft.brandIcon} maxLength={24} disabled={busy} onChange={e => setDraft({ ...draft, brandIcon: e.target.value })} /></label>
       </div>
       <label className="settings-row"><span>{t('Mask file names')}<small>{t('Show “File 1”, “File 2” instead of names')}</small></span><input disabled={busy} className="switch" type="checkbox" checked={draft.maskFileNames} onChange={e => setDraft({ ...draft, maskFileNames: e.target.checked })} /></label>
       <label className="settings-row"><span>{t('Secure record deletion')}<small>{t('SQLite wipes freed pages')}</small></span><input disabled={busy} className="switch" type="checkbox" checked={draft.secureDelete} onChange={e => setDraft({ ...draft, secureDelete: e.target.checked })} /></label>

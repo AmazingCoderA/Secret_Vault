@@ -15,6 +15,9 @@ function FileIcon({ name, size = 24 }: { name: string; size?: number }) {
   const Icon = categories.find(c => c.id === category(name))?.icon ?? File;
   return <Icon size={size} strokeWidth={1.6} />;
 }
+function brandGlyph(icon: string) {
+  return ({ shield: 'SV', lock: 'LK', calc: '01', folder: 'FD', star: '**', diamond: '<>', ghost: 'GH', bolt: '!!' } as Record<string, string>)[icon] ?? icon.slice(0, 4).toUpperCase();
+}
 
 export function Workspace({ login, onLock, onSnapshot, isActive, onDialog }: {
   login: Login; onLock: () => void; onSnapshot: (snapshot: Snapshot) => void; isActive: () => boolean; onDialog: (open: boolean) => void;
@@ -54,30 +57,24 @@ export function Workspace({ login, onLock, onSnapshot, isActive, onDialog }: {
     const errors: string[] = [];
     try {
       const occupied = new Set(files.map(file => file.name.toLocaleLowerCase()));
-      const cleanupChoice = native && picked.some(file => file.sourcePath) ? window.prompt(t('What should happen to source files after successful import: keep, delete, or 3 passes?'), t('keep'))?.trim().toLocaleLowerCase() : t('keep');
-      const cleanupPasses: 0 | 3 | null = cleanupChoice === '3' || cleanupChoice === t('3 passes').toLocaleLowerCase() ? 3 : cleanupChoice === t('delete').toLocaleLowerCase() ? 0 : null;
       for (const file of picked) {
         if (!isActive()) break;
         setProgress(t('Adding {{current}} of {{total}}…', { current: count + 1, total: picked.length }));
         try {
-          if (file.size > maxFileSize) throw new Error(t('exceeds the 32 MiB limit'));
+          if (file.size && file.size > maxFileSize) throw new Error(t('exceeds the 32 MiB limit'));
           let importName = file.name;
           if (occupied.has(importName.toLocaleLowerCase())) {
-            const choice = window.prompt(t('File “{{name}}” already exists. Enter: replace, copy, or skip', { name: importName }), t('copy'))?.trim().toLocaleLowerCase();
-            if (!choice || choice === t('skip').toLocaleLowerCase()) continue;
-            if (choice !== t('replace').toLocaleLowerCase()) {
-              const dot = importName.lastIndexOf('.'); const base = dot > 0 ? importName.slice(0, dot) : importName; const ext = dot > 0 ? importName.slice(dot) : '';
-              let index = 2; while (occupied.has(`${base} (${index})${ext}`.toLocaleLowerCase())) index++; importName = `${base} (${index})${ext}`;
-            }
+            const dot = importName.lastIndexOf('.'); const base = dot > 0 ? importName.slice(0, dot) : importName; const ext = dot > 0 ? importName.slice(dot) : '';
+            let index = 2; while (occupied.has(`${base} (${index})${ext}`.toLocaleLowerCase())) index++; importName = `${base} (${index})${ext}`;
           }
           const bytes = await file.read();
-          try { if (!isActive()) break; await api.import(token, importName, bytes); occupied.add(importName.toLocaleLowerCase()); count++; if (file.sourcePath && cleanupPasses !== null) await api.eraseExternal(file.sourcePath, cleanupPasses); }
+          try { if (!isActive()) break; if (bytes.byteLength > maxFileSize) throw new Error(t('exceeds the 32 MiB limit')); await api.import(token, importName, bytes); occupied.add(importName.toLocaleLowerCase()); count++; }
           finally { bytes.fill(0); }
         } catch (error) { errors.push(`${file.name}: ${t(errorText(error))}`); }
       }
       if (isActive()) {
         await refresh();
-        setNotice({ text: t('Files added: {{count}}.', { count }) + (errors.length ? t(' Failed: {{errors}}', { errors: errors.join('; ') }) : t(' Originals remained in place.')), error: errors.length > 0 });
+        setNotice({ text: t('Files added: {{count}}.', { count }) + (errors.length ? t(' Failed: {{errors}}', { errors: errors.join('; ') }) : ''), error: errors.length > 0 });
       }
     } catch (error) { report(error); }
     finally { if (isActive()) { setBusy(false); setProgress(''); } }
@@ -143,7 +140,7 @@ export function Workspace({ login, onLock, onSnapshot, isActive, onDialog }: {
 
   return <div className="vault-layout">
     <aside className="sidebar">
-      <div className="vault-brand"><div className="brand-mark"><LockKeyhole size={23} /></div><strong>vault<span>.</span></strong><span className="version">0.1</span></div>
+      <div className="vault-brand"><div className="brand-mark"><span className="brand-icon-text">{brandGlyph(settings.brandIcon)}</span></div><strong title={settings.brandName}>{settings.brandName}<span>.</span></strong><span className="version">0.1</span></div>
       <div className="sidebar-label">{t('PERSONAL SPACE')}</div>
       <nav aria-label={t('Main navigation')}>
         <button className={`nav-item ${page === 'files' ? 'selected' : ''}`} onClick={() => setPage('files')}><FolderClosed size={20} />{t('My files')}<span className="nav-count">{files.length}</span></button>

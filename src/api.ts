@@ -1,6 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { readFile, stat, writeFile } from '@tauri-apps/plugin-fs';
+import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { defaultSettings, type ContainerSummary, type Login, type Settings, type Snapshot, type VaultFile, type VaultStatus } from './types';
 import { translate } from './i18n';
 
@@ -158,16 +158,21 @@ export const api = {
 };
 
 export interface PickedFile { name: string; size: number; sourcePath?: string; read: () => Promise<Uint8Array> }
+function pickedName(path: string, index: number): string {
+  const clean = path.split(/[?#]/)[0];
+  const raw = clean.split(/[\\/]/).pop() || '';
+  let decoded = raw;
+  try { decoded = decodeURIComponent(raw); } catch { /* Keep the provider name if it is not valid percent-encoding. */ }
+  const lastPart = decoded.split(/[/:]/).filter(Boolean).pop();
+  const fallback = translate('Import-{{date}}-{{index}}', { date: Date.now(), index: index + 1 });
+  const name = (lastPart || fallback).replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g, '-').replace(/\.+$/, '').trim();
+  return name || fallback;
+}
 export async function pickNativeFiles(): Promise<PickedFile[]> {
-  const paths = await open({ multiple: true, directory: false, title: translate('Import files') });
-  if (!paths) return [];
-  return Promise.all(paths.map(async (path, index) => {
-    const info = await stat(path);
-    // Android document providers may expose an opaque URI, rather than the original name.
-    const basename = path.split(/[\\/]/).pop() || translate('File');
-    const name = path.startsWith('content:') ? translate('Import-{{date}}-{{index}}', { date: Date.now(), index: index + 1 }) : path.startsWith('file:') ? decodeURIComponent(basename) : basename;
-    return { name, size: info.size, sourcePath: path, read: () => readFile(path) };
-  }));
+  const selected = await open({ multiple: true, directory: false, title: translate('Import files') });
+  if (!selected) return [];
+  const paths = Array.isArray(selected) ? selected : [selected];
+  return paths.map((path, index) => ({ name: pickedName(path, index), size: 0, sourcePath: path, read: () => readFile(path) }));
 }
 export function browserFiles(files: FileList | File[]): PickedFile[] {
   return Array.from(files).map(file => ({ name: file.name, size: file.size, read: async () => new Uint8Array(await file.arrayBuffer()) }));
@@ -223,6 +228,7 @@ const errorAliases: Record<string, string> = {
   'Неизвестная тема.': 'Unknown theme.',
   'Неизвестный режим защиты.': 'Unknown protection mode.',
   'Некорректные настройки.': 'Invalid settings.',
+  'Некорректные настройки бренда.': 'Invalid branding settings.',
   'Некорректный цвет интерфейса.': 'Invalid interface color.',
   'Хранилище уже создано.': 'Vault already exists.',
   'Повреждена запись пароля.': 'The password record is damaged.',

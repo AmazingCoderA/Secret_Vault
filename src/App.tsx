@@ -60,6 +60,7 @@ export function App() {
     } else {
       document.documentElement.style.setProperty('--green', settings?.accentColor ?? '#9be8c4');
     }
+    document.title = settings?.brandName || 'Calculator';
   }, [login, theme]);
 
   useEffect(() => {

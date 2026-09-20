@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>app.local.vaultcalculator</id>
+  <id>io.github.amazingcodera.secretvault</id>
   <name>Secret Vault</name>
   <summary>Private encrypted file vault hidden behind a calculator</summary>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary</project_license>
-  <launchable type="desktop-id">app.local.vaultcalculator.desktop</launchable>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer_name>AmazingCoderA</developer_name>
+  <url type="homepage">https://github.com/AmazingCoderA/Secret_Vault</url>
+  <launchable type="desktop-id">io.github.amazingcodera.secretvault.desktop</launchable>
   <description>
     <p>A private encrypted file vault hidden behind a normal calculator interface.</p>
   </description>
@@ -19,6 +21,6 @@
     <control>touch</control>
   </supports>
   <releases>
-    <release version="0.1.4" date="2026-09-20" />
+    <release version="0.1.5" date="2026-09-20" />
   </releases>
 </component>
