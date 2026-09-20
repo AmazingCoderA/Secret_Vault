@@ -81,12 +81,12 @@ jobs:
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android,armv7-linux-androideabi
       - run: yes | sdkmanager --licenses && sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
       - run: echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npm run tauri android init
-      - run: npm run tauri android build -- --debug
+      - run: npm run tauri android build -- --debug --apk --target aarch64 armv7 --split-per-abi --ci
       - name: Collect APK
         shell: bash
         run: mkdir -p release-assets && find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} release-assets/ \;
@@ -136,7 +136,7 @@ jobs:
             - Windows: NSIS installer
             - Linux: AppImage, DEB, and standalone x86_64 binary
             - macOS: DMG
-            - Android: debug APK
+            - Android: split ARM debug APKs
             - Linux desktop: Flatpak
 
             English is the default language. Russian is selected automatically on Russian system locales and can be changed with the EN/RU button.

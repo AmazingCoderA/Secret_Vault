@@ -4035,7 +4035,7 @@ dependencies = [
 
 [[package]]
 name = "vault-calculator"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "argon2",
  "base64 0.22.1",
